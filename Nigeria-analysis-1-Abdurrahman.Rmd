@@ -1,0 +1,349 @@
+---
+title: "Descriptive_Table_VN_2025"
+author: "Abdurrahman Abdulhamid"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+#Clear existing data and graphics
+rm(list=ls())
+graphics.off()
+```
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gtsummary)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(readr)
+Nigeria_R3_Data_Simple_in_ <- read_csv("C:/Bryan_project_files/VN_2025/Nigeria-R3-Data-Simple(in).csv")
+#View(Nigeria_R3_Data_Simple_in_)
+data <-Nigeria_R3_Data_Simple_in_
+```
+
+Day 1.
+Explore the dataset and create a table that describes the data, including medians (25th and 75th percentiles) for continuous data and counts (and percentages) for discrete data. Investigate missingness of the variables. 
+
+```{r}
+str(data)
+summary(data)
+any(is.na(data))
+colSums(is.na(data))
+```
+
+
+
+
+
+```{r}
+#We have binary variables male, smoke, tdf, dtg, htn, DM among the variables in the data dictionary
+
+summary(data$male)
+table(data$male)
+
+summary(data$smoke)
+table(data$smoke)
+
+summary(data$tdf)
+table(data$tdf)
+
+summary(data$dtg)
+table(data$dtg)
+
+summary(data$htn)
+table(data$htn)
+
+summary(data$DM)
+table(data$DM)
+```
+
+```{r}
+#Can we find their proportions?
+prop.table(table(data$risk.alleles))
+prop.table(table(data$male))
+```
+
+```{r}
+#Finding counts
+male_counts <- table(data$male)
+
+
+#Finding the proportion
+male_proportions <- prop.table(male_counts)
+print("Proportions for 'male' variable:")
+print(male_proportions)
+
+#Converting to percentage
+male_percentage_ <- prop.table(male_counts) * 100
+male_percentages <- male_proportions * 100
+print("Percentages for 'male' variable:")
+print(round(male_percentages, 1)) # Round to 1 decimal place for neatness
+```
+
+
+```{r}
+jnc_bp_counts <- table(data$jnc_bp)
+print("Counts for 'jnc_bp' variable:")
+print(jnc_bp_counts)
+
+jnc_bp_percentages <- prop.table(jnc_bp_counts) * 100
+print("Percentages for 'jnc_bp' variable:")
+print(round(jnc_bp_percentages, 1))
+```
+
+
+```{r}
+risk_alleles__counts <- table(data$risk.alleles)
+print("Counts for 'risk_alleles' variable:")
+print(risk_alleles__counts)
+
+risk_alleles_percentages <- prop.table(risk_alleles__counts) * 100
+print("Percentages for 'risk_alleles' variable:")
+print(round(risk_alleles_percentages, 1))
+
+```
+
+
+
+
+
+```{r}
+#Using mutate to change variable from numeric to factor
+data$htn <- as.factor(data$htn)
+data <- data %>%
+  mutate(
+   htn= fct_collapse(htn,
+             "Yes" = "1",
+             "No" = "0"
+ ))
+```
+
+```{r}
+data$DM <- as.factor(data$DM)
+data <- data %>%
+  mutate(
+   DM= fct_collapse(DM,
+             "Yes" = "1",
+             "No" = "0"
+ ))
+```
+
+```{r}
+#Another approach to change variable from numeric to factor
+data$male[data$male == 0] = "Female"
+data$male[data$male == 1] = "Male"
+
+data$smoke[data$smoke == 0] = "No"
+data$smoke[data$smoke == 1] = "Yes"
+
+data$tdf[data$tdf == 0] = "No"
+data$tdf[data$tdf == 1] = "Yes"
+
+data$dtg[data$dtg == 0] = "No"
+data$dtg[data$dtg == 1] = "Yes"
+```
+
+
+
+
+
+```{r}
+data$risk.alleles <- as.factor(data$risk.alleles)
+risk.alleles = c("Zero risk alleles" = "0",
+             "One risk Alleles" = "1",
+             "Two risk Alleles" = "2")
+```
+
+
+
+```{r}
+
+data <- data %>%
+  mutate(
+    risk.alleles = fct_collapse(risk.alleles,
+            "Zero risk alleles" = "0",
+             "One risk Alleles" = "1",
+             "Two risk Alleles" = "2"
+ ))
+```
+
+
+```{r}
+head(data)
+```
+
+
+```{r}
+#Create descriptive table with medians/IQR and counts/percentages
+descriptive_table_1 <- data %>%
+  # Select only the variables you want in the table
+  dplyr::select(age, male, bmi, smoke, cd4, tdf, dtg, risk.alleles, htn,
+                jnc_bp, years.ART, uACR, eGFR, potassium, sodium, bicarbonate,
+                chloride, urea, SBP, DBP, DM) %>%
+  tbl_summary(
+    by = NULL, # Summarize the entire dataset (no grouping)
+    # Define how different types of variables should be summarized:
+    type = list(
+      # For all continuous variables, use "continuous2" to get Median (IQR) format by default
+      all_continuous() ~ "continuous2",
+      # For all categorical variables (including binary converted to factor)
+      # and count variables, use "categorical"
+      all_categorical() ~ "categorical"
+    ),
+    # Define the exact statistics to display for each type:
+    statistic = list(
+      # For continuous variables: Median (25th percentile, 75th percentile)
+      all_continuous() ~ "{median} ({p25}, {p75})",
+      # For categorical variables: Count (Percentage)
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    missing = "no", digits = all_continuous() ~ 1) %>%
+  bold_labels() %>%
+  modify_header(label ~ "**Variable**")
+
+descriptive_table_1
+```
+
+
+```{r}
+#Modifing Descriptive Table with clear labels of variables
+descriptive_table_2 <- data %>%
+  # Select only the variables you want in the table
+  dplyr::select(age, male, bmi, smoke, cd4, tdf, dtg, risk.alleles, htn,
+                jnc_bp, years.ART, uACR, eGFR, potassium, sodium, bicarbonate,
+                chloride, urea, SBP, DBP, DM) %>%
+  tbl_summary(
+    by = NULL, # Summarize the entire dataset (no grouping)
+    # Define how different types of variables should be summarized:
+    type = list(
+      # For all continuous variables, use "continuous2" to get Median (IQR) format by default
+      all_continuous() ~ "continuous2",
+      # For all categorical variables (including binary converted to factor)
+      # and count variables, use "categorical"
+      all_categorical() ~ "categorical"
+    ),
+    # Define the exact statistics to display for each type:
+    statistic = list(
+      # For continuous variables: Median (25th percentile, 75th percentile)
+      all_continuous() ~ "{median} ({p25}, {p75})",
+      # For categorical variables: Count (Percentage)
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    # How to handle missing values: show a missing row if there are any NAs
+    missing = "ifany",
+    # Text to display for missing values row
+    missing_text = "Missing",
+    # Provide clear labels for variables in the table
+    label = list(
+      age ~ "Age, years",
+      male ~ "Male Sex at Birth", # Will use value_labels for 0/1
+      bmi ~ "Body mass index (kg/m^2)",
+      smoke ~ "Current Smoker",
+      cd4 ~ "CD4 T Cell Count (cells/mm^3)",
+      tdf ~ "On Tenofovir Therapy",
+      dtg ~ "On Dolutegravir Therapy",
+      risk.alleles ~ "Number of High Risk APOL1 Genotype Alleles",
+      htn ~ "Self-reported Hypertension",
+      jnc_bp ~ "Blood Pressure Classification", 
+      years.ART ~ "Years on ART",
+      uACR ~ "Urine Albumin Creatinine Ratio (mg/g)",
+      eGFR ~ "eGFR, (ml/min per 1.73 m^2)",
+      potassium ~ "Potassium",
+      sodium ~ "Sodium",
+      bicarbonate ~ "Bicarbonate",
+      chloride ~ "Chloride",
+      urea ~ "Urea",
+      SBP ~ "Systolic BP, mm Hg",
+      DBP ~ "Diastolic BP, mm Hg",
+      DM ~ "Diabetes Mellitus"
+    )
+  ) %>%
+  # Add a column for the total number of non-missing observations for each variable
+  add_n() %>%
+  # Add an overall column for the total count of observations in the dataset
+#  add_overall() %>%
+  # Modify the header to be more descriptive
+  bold_labels() %>%
+  modify_header(label = "**Variable**",
+                stat_0 = "**Total (N={n})**") # {n} will be replaced by the total number of observations
+
+descriptive_table_2
+```
+
+```{r = Investigate missingness of the variables.}
+#Investigating missingness in the dataset is a crucial step in data cleaning and analysis. It helps to understand the extent, patterns, and potential implications of missing data, which can guide in decisions on how to handle it (e.g., imputation, deletion, or simply reporting).
+
+# Check for any missing values in the entire data frame
+any(is.na(data))
+# Returns TRUE if there's at least one NA, FALSE otherwise
+
+# Count total missing values in the entire data frame
+sum(is.na(data))
+
+# Count missing values per column
+colSums(is.na(data))
+
+# Calculate the proportion (percentage) of missing values per column
+colMeans(is.na(data)) * 100
+
+# Get a summary for a specific variable (works well for numeric variables)
+summary(data$cd4) # Look for the "NA's" count at the bottom
+```
+
+
+```{r Package for missingness check}
+#install.packages("naniar")
+library(naniar)
+```
+
+
+```{r}
+miss_var_summary(data)
+# This will output a table showing each variable, its class,
+# number of missing values (n_miss), and percentage missing (pct_miss).
+```
+
+
+```{r}
+miss_case_summary(data)
+# This can help identify if certain observations (rows) are almost entirely missing.
+```
+
+```{r}
+#vis_miss(): It's great for seeing the density of missing values and if there are obvious patterns.
+
+vis_miss(data)
+```
+
+```{r}
+#This plots the number (or percentage) of missing values for each variable as a bar chart. 
+
+gg_miss_var(data) # By default, shows counts
+gg_miss_var(data, show_pct = TRUE) # Show percentages
+```
+
+
+```{r}
+gg_miss_upset(data)
+# This plot can be very insightful for understanding relationships between missingness.
+```
+
+
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = cd4, y = risk.alleles)) +
+  geom_point() +
+  geom_miss_point(aes(y = risk.alleles)) # Highlights points where risk alleles is missing
+
+
+```
+
+
+
