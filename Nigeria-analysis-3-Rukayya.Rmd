@@ -1,0 +1,222 @@
+---
+title: "Day 3"
+author: "Rukayya SA"
+date: "2025-06-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(mice)
+library(broom)
+library(dplyr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+d <- read.csv("C:/Users/rukay/Downloads/VNbiostat workshop/Nigeria-R3-Data-Simple(in).csv")
+
+d$male[d$male == 0] = "Female"
+d$male[d$male == 1] = "Male"
+
+d$smoke[d$smoke == 0] = "No"
+d$smoke[d$smoke == 1] = "Yes"
+
+d$tdf[d$tdf == 0] = "No"
+d$tdf[d$tdf == 1] = "Yes"
+
+d$dtg[d$dtg == 0] = "No"
+d$dtg[d$dtg == 1] = "Yes"
+
+d$risk.alleles <- as.factor(d$risk.alleles)
+
+d$htn[d$htn == 0] = "No"
+d$htn[d$htn == 1] = "Yes"
+
+d$DM[d$DM == 0] = "No"
+d$DM[d$DM == 1] = "Yes"
+
+
+```
+
+
+Day 3.
+Based on discussions with a clinician (Dr. Aliyu), fit a regression model for eGFR that includes CD4 count, risk alleles, and other variables thought to be important. Use multiple imputation to account for missing data. Report coefficient estimates and 95% confidence intervals in a table. Interpret findings.
+```{r,echo=FALSE}
+
+#Creates a binary variable for allele high-risk status
+#Sets hr.allele = 1 only if both alleles are high-risk (2 risk alleles) & hr.allele = 0 for 0 or 1 risk alleles
+d$hr.allele<-with(d, ifelse(d$risk.alleles==2,1,0))
+
+#Creates a focused dataset
+d1<-d[,c("age","male","bmi","smoke","cd4","tdf","hr.allele","htn","jnc_bp","years.ART","eGFR","DM")]
+
+# Inspect missingness
+md.pattern(d1)
+```
+
+```{r}
+
+# Checks default imputation methods before running full imputation
+#Creates "empty" imputation template 
+imp.default<-mice(d1, maxit=0)
+
+#Shows automatic method selection
+print(imp.default$method)
+```
+
+```{r}
+#First imputation (default methods)
+MI.data<-mice(d1, m=20, maxit=5)
+
+#Shows which variables predict missingness in others(rows represent variables to be imputed, and columns represent predictor variables) A value of 1 indicates that the column variable is used to predict the row variable, while 0 means it is not used.
+summary(MI.data)$PredictorMatrix
+```
+
+```{r}
+# Check imputation quality
+densityplot(MI.data, ~cd4)
+```
+
+```{r}
+# Fit model to imputed data
+fit.MI <- with(MI.data,
+               lm(eGFR ~ age+male+bmi+smoke+I(sqrt(cd4))+tdf+hr.allele+htn+jnc_bp+years.ART+DM))
+summary(pool(fit.MI))
+
+table <- tidy(pool(fit.MI), conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high, p.value)
+class(table) <- "data.frame"
+table
+```
+
+
+```{r}
+#Fit model to imputed data
+fit.MI <- with(MI.data,
+               lm(eGFR ~ age + male + bmi + smoke + I(sqrt(cd4)) + tdf + hr.allele +
+                    htn + jnc_bp + years.ART + DM))
+
+# Pool the results and extract the summary table
+summary(pool(fit.MI))
+
+table <- tidy(pool(fit.MI), conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate = round(estimate, 3),
+    conf.low = round(conf.low, 3),
+    conf.high = round(conf.high, 3),
+    p.value = round(p.value, 3)
+  )
+
+# Ensure it's a data frame
+class(table) <- "data.frame"
+table
+```
+
+
+```{r}
+## playing around with the defaults:
+
+my.methods <- imp.default$method
+my.methods["hr.allele"] <- "logreg"
+print(my.methods)
+MI.data1<-mice(d1, method=my.methods, m=20, maxit=5)
+
+fit.MI1 <- with(MI.data1,
+               lm(eGFR ~ age+male+bmi+smoke+I(sqrt(cd4))+tdf+hr.allele+htn+jnc_bp+years.ART+DM))
+summary(pool(fit.MI1))
+
+# Pool the results and extract the summary table
+table1 <- tidy(pool(fit.MI1), conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate = round(estimate, 3),
+    conf.low = round(conf.low, 3),
+    conf.high = round(conf.high, 3),
+    p.value = round(p.value, 3)
+  )
+
+# Ensure it's a data frame
+class(table1) <- "data.frame"
+table1
+```
+
+
+
+
+```{r}
+## Here I let CD4 follow a gamma distribution. This is very slow and gives similar results
+library("ImputeRobust")
+
+my.methods["cd4"] <- "gamlssGA"
+MI.data2<-mice(d1, method=my.methods, m=20, maxit=5) # very slow
+
+fit.MI2 <- with(MI.data2,
+               lm(eGFR ~ age+male+bmi+smoke+I(sqrt(cd4))+tdf+hr.allele+htn+jnc_bp+years.ART+DM))
+summary(pool(fit.MI2))
+
+# Pool the results and extract the summary table
+table2 <- tidy(pool(fit.MI2), conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate = round(estimate, 3),
+    conf.low = round(conf.low, 3),
+    conf.high = round(conf.high, 3),
+    p.value = round(p.value, 3)
+  )
+
+# Ensure it's a data frame
+class(table2) <- "data.frame"
+table2
+```
+
+
+```{r}
+## Now I square root transform CD4 and say it is normally distributed.
+
+d1$sq.cd4<-sqrt(d1$cd4)
+
+d2<-d1[,c("age","male","bmi","smoke","sq.cd4","tdf","hr.allele","htn","jnc_bp","years.ART","eGFR","DM")]
+
+imp.default<-mice(d2, maxit=0)
+print(imp.default$method)
+my.methods <- imp.default$method
+my.methods["hr.allele"] <- "logreg"
+my.methods["sq.cd4"] <- "norm"
+print(my.methods)
+MI.data3<-mice(d2, method=my.methods, m=20, maxit=5)
+
+fit.MI3 <- with(MI.data3,
+               lm(eGFR ~ age+male+bmi+smoke+sq.cd4+tdf+hr.allele+htn+jnc_bp+years.ART+DM))
+summary(pool(fit.MI3))
+
+densityplot(MI.data3, ~sq.cd4)
+
+# Pool the results and extract the summary table
+table3 <- tidy(pool(fit.MI3), conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high, p.value) %>%
+  mutate(
+    estimate = round(estimate, 3),
+    conf.low = round(conf.low, 3),
+    conf.high = round(conf.high, 3),
+    p.value = round(p.value, 3)
+  )
+
+# Ensure it's a data frame
+class(table3) <- "data.frame"
+table3
+```
+
+
+```{r}
+## Results are very similar no matter how this is done.
+
+table # Default
+table1 # Custom binary
+table2 # Gamma CD4
+table3 # Pre-transformed CD4
+
+```==
+
